@@ -478,17 +478,30 @@
 
   /* ---------------- featured products ---------------- */
   async function loadProducts() {
-    try {
-      const r = await fetch('https://baznivo-storefront.vercel.app/api/products?limit=100', { headers: { Accept: 'application/json' } });
-      const d = await r.json();
-      products = (d.items || []).map((p) => ({
-        slug: p.slug,
+    const STORE = 'https://baznivo-storefront.vercel.app';
+    const local = (draft.products && draft.products.length ? draft.products : typeof PRODUCTS !== 'undefined' ? PRODUCTS : []).map(
+      (p) => ({
+        slug: p.slug || String(p.name).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         name: p.name,
-        image: p.image ? 'https://baznivo-storefront.vercel.app/media/' + String(p.image).replace(/^\/?assets\//, '') : '',
-        price: Math.round(Number(p.effective_price || p.price || 0) / 100),
-      }));
+        image: p.image ? (/^https?:/i.test(p.image) ? p.image : STORE + '/' + String(p.image).replace(/^\//, '')) : '',
+        price: Math.round(Number(p.price) || 0),
+      })
+    );
+    products = local;
+    try {
+      const r = await fetch(STORE + '/api/products?limit=100', { headers: { Accept: 'application/json' } });
+      if (r.ok) {
+        const d = await r.json();
+        const live = (d.items || []).map((p) => ({
+          slug: p.slug,
+          name: p.name,
+          image: p.image ? STORE + '/media/' + String(p.image).replace(/^\/?assets\//, '') : '',
+          price: Math.round(Number(p.effective_price || p.price || 0) / 100),
+        }));
+        if (live.length) products = local.concat(live.filter((l) => !local.some((x) => x.slug === l.slug)));
+      }
     } catch {
-      products = [];
+      /* cross-origin blocked — the local catalogue above is enough */
     }
     renderPicks();
   }
